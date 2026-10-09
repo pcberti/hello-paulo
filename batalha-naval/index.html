@@ -427,7 +427,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
   })();
 
   // ---------- estado ----------
-  let me, enemy, phase, placing, horiz, hover, busy, stats, log, fresh, justSunk = -1;
+  let me, enemy, phase, placing, horiz, hover, busy, stats, log, fresh, justSunk = { me: -1, enemy: -1 };
   const score = { me: 0, enemy: 0 };
 
   function reset() {
@@ -612,21 +612,24 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
       : `<svg viewBox="0 0 100 ${W}" preserveAspectRatio="none"><g transform="rotate(90) translate(0 -100)">${art}</g></svg>`;
   }
   function renderWrecks() {
-    const g = $("g-enemy");
+    drawWrecks($("g-own"), me, justSunk.me);
+    drawWrecks($("g-enemy"), enemy, justSunk.enemy);
+    justSunk = { me: -1, enemy: -1 };
+  }
+  function drawWrecks(g, board, newK) {
     g.querySelectorAll(".wreck").forEach((n) => n.remove());
-    enemy.ships.forEach((s, k) => {
+    board.ships.forEach((s, k) => {
       if (s.hits < s.size) return;
       const r = (s.cells[0] / N) | 0, c = s.cells[0] % N;
       const h = s.cells[1] - s.cells[0] === 1;
       const el = document.createElement("div");
-      el.className = "wreck" + (k === justSunk ? " new" : "");
+      el.className = "wreck" + (k === newK ? " new" : "");
       el.setAttribute("aria-hidden", "true");
       el.style.gridRow = h ? `${r + 2}` : `${r + 2} / span ${s.size}`;
       el.style.gridColumn = h ? `${c + 2} / span ${s.size}` : `${c + 2}`;
       el.innerHTML = shipSVG(k, s.size, h);
       g.appendChild(el);
     });
-    justSunk = -1;
   }
 
   function renderFleet(el, b, mine) {
@@ -696,7 +699,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     stats.shots++;
     if (res.type !== "miss") stats.hits++;
     sound.play(res.type);
-    if (res.type === "sunk") justSunk = enemy.ships.indexOf(res.ship);
+    if (res.type === "sunk") justSunk.enemy = enemy.ships.indexOf(res.ship);
     fresh.add("e" + i);
     log.unshift({ i, who: "Você", type: res.type, ship: res.type === "sunk" ? res.ship.name : "" });
     const msg = res.type === "miss" ? coord(i) + ": água." : res.type === "hit" ? coord(i) + ": acertou!" : "Você afundou o " + res.ship.name.toLowerCase() + "!";
@@ -712,6 +715,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     const i = aiPick(me);
     const res = fire(me, i);
     sound.play(res.type, 0.7);
+    if (res.type === "sunk") justSunk.me = me.ships.indexOf(res.ship);
     fresh.add("m" + i);
     log.unshift({ i, who: "Inimigo", type: res.type, ship: res.type === "sunk" ? res.ship.name : "" });
     busy = false;
