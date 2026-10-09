@@ -1,98 +1,205 @@
 <title>Batalha Naval</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Barlow+Semi+Condensed:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Chakra+Petch:wght@500;600;700&family=Share+Tech+Mono&display=swap">
 <style>
-/* Layout: carta náutica — duas grades A–J × 1–10 lado a lado, painel de comando abaixo */
+/* Layout: console de comando naval — placar luminoso no topo, rádio de mensagens, dois radares lado a lado.
+   Visual escuro de propósito (mundo do jogo), igual nos temas claro e escuro. */
 :root {
-  --bg: #e6ecee;
-  --paper: #f5f8f8;
-  --ink: #13283a;
-  --muted: #5a6f80;
-  --line: #bfccd4;
-  --sea: #d4e2e9;
-  --ship: #3d5467;
-  --deck: #a3b5c3;
-  --hit: #c62f25;
-  --miss: #6f889c;
-  --accent: #d99a17;
+  --bg: #051019;
+  --bg-glow: #0c2a40;
+  --panel: #0c2333;
+  --panel-hi: #143650;
+  --edge: #24506f;
+  --ink: #e4f0f7;
+  --muted: #84a3b8;
+  --sea: #0d3149;
+  --sea-hi: #114060;
+  --ship: #8ea7ba;
+  --deck: #3b5a6f;
+  --hit: #ff4b38;
+  --miss: #b9d3e3;
+  --accent: #ffb22e;
+  --accent-dk: #b86f00;
+  --sonar: #4ce6a6;
+  --steel: #2b4c63;
+  --steel-dk: #142c3d;
   --display: "Saira Stencil One", "Arial Narrow", Impact, sans-serif;
-  --body: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0a151e; --paper: #0f1f2b; --ink: #d9e6ee; --muted: #8aa1b2; --line: #213849;
-    --sea: #122838; --ship: #8ea6b9; --deck: #4b6375; --hit: #ff5b47; --miss: #5d788c; --accent: #f0b53a;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0a151e; --paper: #0f1f2b; --ink: #d9e6ee; --muted: #8aa1b2; --line: #213849;
-  --sea: #122838; --ship: #8ea6b9; --deck: #4b6375; --hit: #ff5b47; --miss: #5d788c; --accent: #f0b53a;
+  --body: "Chakra Petch", "Arial Narrow", system-ui, sans-serif;
+  --mono: "Share Tech Mono", ui-monospace, Menlo, Consolas, monospace;
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
+html { background: var(--bg); }
 body {
-  background: var(--bg);
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, var(--bg-glow), transparent 70%),
+    repeating-linear-gradient(0deg, transparent 0 39px, rgba(76, 230, 166, 0.04) 39px 40px),
+    repeating-linear-gradient(90deg, transparent 0 39px, rgba(76, 230, 166, 0.04) 39px 40px),
+    var(--bg);
   color: var(--ink);
   font-family: var(--body);
-  font-size: 17px;
-  line-height: 1.45;
+  font-size: 16px;
+  line-height: 1.4;
   padding-inline: 16px;
   padding-block: 20px 40px;
+  min-height: 100%;
 }
-.wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+.wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
 
-header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
-h1 { font-family: var(--display); font-weight: 400; font-size: clamp(2.4rem, 7vw, 3.6rem); line-height: 0.95; margin: 0; letter-spacing: 0.02em; text-wrap: balance; }
-.meta { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; display: flex; gap: 16px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+/* ---------- topo: título e placar ---------- */
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; }
+h1 {
+  font-family: var(--display); font-weight: 400; margin: 0;
+  font-size: clamp(2.6rem, 8vw, 4.2rem); line-height: 0.9; letter-spacing: 0.03em;
+  background: linear-gradient(180deg, #ffffff 0%, #b8cfdd 45%, #6f8ea4 52%, #c9dbe6 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 3px 0 #000) drop-shadow(0 0 18px rgba(76, 230, 166, 0.25));
+}
+.hud { display: flex; gap: 8px; flex-wrap: wrap; }
+.gauge {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 84px; padding: 6px 12px 8px;
+  background: linear-gradient(180deg, #020a10, #071824);
+  border: 2px solid var(--edge); border-radius: 6px;
+  box-shadow: inset 0 2px 8px #000, 0 0 0 1px #000;
+}
+.gauge span { font-family: var(--body); font-weight: 700; font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+.gauge b {
+  font-family: var(--mono); font-weight: 400; font-size: 1.6rem; line-height: 1;
+  color: var(--accent); text-shadow: 0 0 10px rgba(255, 178, 46, 0.6);
+  font-variant-numeric: tabular-nums;
+}
 
-.status { display: flex; flex-direction: column; gap: 2px; min-height: 3.2em; }
-.status strong { font-size: 1.35rem; font-weight: 600; }
-.status span { color: var(--muted); }
+/* ---------- rádio de mensagens ---------- */
+.status {
+  position: relative;
+  display: flex; flex-direction: column; gap: 4px; min-height: 5.2em; justify-content: center;
+  padding: 12px 16px 12px 48px;
+  background: linear-gradient(180deg, #03121b, #082131);
+  border: 2px solid var(--edge); border-radius: 8px;
+  box-shadow: inset 0 0 24px rgba(76, 230, 166, 0.08), inset 0 2px 6px #000;
+}
+.status::before {
+  content: ""; position: absolute; left: 18px; top: 50%; width: 12px; height: 12px; margin-top: -6px;
+  border-radius: 50%; background: var(--sonar); box-shadow: 0 0 10px var(--sonar);
+  animation: blink 1.6s ease-in-out infinite;
+}
+@keyframes blink { 50% { opacity: 0.25; } }
+.status strong {
+  font-family: var(--body); font-weight: 700; font-size: clamp(1.2rem, 3.6vw, 1.55rem);
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--sonar);
+  text-shadow: 0 0 12px rgba(76, 230, 166, 0.45);
+}
+.status > span { font-family: var(--mono); font-size: 0.98rem; color: var(--ink); opacity: 0.85; }
 
-.boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 28px; }
-.board { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.board h2 { margin: 0; font-family: var(--mono); font-weight: 500; font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+/* ---------- botões ---------- */
+.controls { display: flex; flex-wrap: wrap; gap: 12px; }
+button.btn {
+  font-family: var(--body); font-weight: 700; font-size: 0.95rem;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 11px 20px 10px; border-radius: 8px; cursor: pointer;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--panel-hi), var(--steel));
+  border: 2px solid #3d6b8b;
+  box-shadow: 0 5px 0 var(--steel-dk), 0 7px 12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  text-shadow: 0 1px 0 #000;
+  transition: transform 0.06s, box-shadow 0.06s, filter 0.15s;
+}
+button.btn.primary {
+  color: #2a1600; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: linear-gradient(180deg, #ffd27a, var(--accent));
+  border-color: #ffd27a;
+  box-shadow: 0 5px 0 var(--accent-dk), 0 7px 14px rgba(255, 140, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+button.btn:hover:not(:disabled) { filter: brightness(1.12); }
+button.btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 var(--steel-dk), 0 2px 4px rgba(0, 0, 0, 0.5); }
+button.btn.primary:active:not(:disabled) { box-shadow: 0 1px 0 var(--accent-dk), 0 2px 4px rgba(0, 0, 0, 0.5); }
+button.btn:focus-visible { outline: 3px solid var(--sonar); outline-offset: 3px; }
+button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+#b-sound { margin-left: auto; }
+#b-sound[aria-pressed="false"] { color: var(--muted); }
+
+/* ---------- radares ---------- */
+.boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 18px; }
+.board {
+  position: relative;
+  display: flex; flex-direction: column; gap: 12px; min-width: 0;
+  padding: 14px 14px 16px;
+  background: linear-gradient(180deg, var(--panel-hi), var(--panel) 18%);
+  border: 2px solid var(--edge); border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+/* parafusos nos cantos do painel */
+.board::before, .board::after {
+  content: ""; position: absolute; top: 8px; width: 7px; height: 7px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #9fb9cb, #2a465b 70%);
+}
+.board::before { left: 8px; }
+.board::after { right: 8px; }
+.board h2 {
+  margin: 0; padding-inline: 10px;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-family: var(--display); font-weight: 400; font-size: 1.45rem; letter-spacing: 0.04em; line-height: 1;
+}
+.board h2 span:last-child {
+  font-family: var(--mono); font-size: 0.85rem; letter-spacing: 0.04em; color: var(--sonar);
+}
+.enemy-board h2 span:first-child { color: #ffd9a0; }
 
 .grid {
+  position: relative;
   display: grid;
-  grid-template-columns: 1.4em repeat(10, 1fr);
+  grid-template-columns: 1.5em repeat(10, minmax(0, 1fr));
   gap: 2px;
   width: 100%;
-  max-width: 440px;
+  max-width: 460px;
+  margin-inline: auto;
+  padding: 6px;
+  background: #041621;
+  border: 2px solid #000;
+  border-radius: 8px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--edge);
   font-family: var(--mono);
-  font-size: 0.7rem;
-  color: var(--muted);
+  font-size: 0.78rem;
+  color: var(--sonar);
 }
-.grid .hd { display: flex; align-items: center; justify-content: center; }
+.grid .hd { display: flex; align-items: center; justify-content: center; opacity: 0.8; }
+/* varredura do sonar nas águas inimigas */
+.grid.target::after {
+  content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: 8px;
+  background: linear-gradient(90deg, transparent, rgba(76, 230, 166, 0.10) 48%, rgba(76, 230, 166, 0.22) 50%, transparent 51%);
+  background-size: 200% 100%;
+  animation: sweep 4s linear infinite;
+}
+@keyframes sweep { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 .cell {
   aspect-ratio: 1;
   max-width: 100%;
   border: 0;
   padding: 0;
   margin: 0;
-  background: var(--sea);
-  border-radius: 2px;
+  background: linear-gradient(160deg, var(--sea-hi), var(--sea));
+  border-radius: 3px;
   position: relative;
   cursor: default;
   font: inherit;
   color: inherit;
 }
-.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 1; }
-.cell.ship { background: var(--ship); }
+.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 4; }
+.cell.ship { background: linear-gradient(180deg, #a9bfcf, var(--ship) 60%, #6c8597); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.3); }
 .cell.miss::after, .cell.auto::after {
-  content: ""; position: absolute; inset: 38%; border-radius: 50%; background: var(--miss);
+  content: ""; position: absolute; inset: 36%; border-radius: 50%;
+  background: var(--miss); box-shadow: 0 0 6px rgba(185, 211, 227, 0.6);
 }
-.cell.auto::after { opacity: 0.45; }
-.cell.hit { background: var(--hit); }
+.cell.auto::after { opacity: 0.35; box-shadow: none; }
+.cell.hit { background: radial-gradient(circle, #ffb199 0%, var(--hit) 55%, #9e1d10 100%); box-shadow: 0 0 10px rgba(255, 75, 56, 0.6); }
 .cell.hit::after {
-  content: ""; position: absolute; inset: 26%;
+  content: ""; position: absolute; inset: 24%;
   background:
-    linear-gradient(45deg, transparent 42%, var(--paper) 42% 58%, transparent 58%),
-    linear-gradient(-45deg, transparent 42%, var(--paper) 42% 58%, transparent 58%);
+    linear-gradient(45deg, transparent 40%, #fff 40% 60%, transparent 60%),
+    linear-gradient(-45deg, transparent 40%, #fff 40% 60%, transparent 60%);
 }
 .cell.sunk { background: var(--ship); box-shadow: inset 0 0 0 2px var(--hit); }
 .cell.sunk::after {
@@ -102,18 +209,21 @@ h1 { font-family: var(--display); font-weight: 400; font-size: clamp(2.4rem, 7vw
     linear-gradient(-45deg, transparent 40%, var(--hit) 40% 60%, transparent 60%);
 }
 .cell.fresh { animation: splash 0.45s ease-out; }
-@keyframes splash { from { transform: scale(0.6); filter: brightness(1.6); } to { transform: scale(1); filter: none; } }
+@keyframes splash { from { transform: scale(0.5); filter: brightness(2); } to { transform: scale(1); filter: none; } }
 
 /* desenho do navio afundado, cobrindo as casas dele */
 .wreck {
   z-index: 2;
+  min-width: 0;
+  min-height: 0;
   pointer-events: none;
-  background: var(--sea);
-  border-radius: 3px;
-  box-shadow: inset 0 0 0 2px var(--hit);
+  background: linear-gradient(160deg, var(--sea-hi), var(--sea));
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 2px var(--hit), 0 0 12px rgba(255, 75, 56, 0.45);
   overflow: hidden;
 }
-.wreck svg { display: block; width: 100%; height: 100%; }
+.wreck { position: relative; }
+.wreck svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 .wreck .sv-hull { fill: var(--ship); }
 .wreck .sv-top { fill: var(--deck); }
 .wreck .sv-gun { stroke: var(--deck); stroke-width: 3px; stroke-linecap: round; vector-effect: non-scaling-stroke; }
@@ -124,59 +234,67 @@ h1 { font-family: var(--display); font-weight: 400; font-size: clamp(2.4rem, 7vw
 @keyframes wreck-in { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
 
 .target .cell.open { cursor: crosshair; }
-.target .cell.open:hover { box-shadow: inset 0 0 0 2px var(--accent); }
+.target .cell.open:hover { background: var(--sea-hi); box-shadow: inset 0 0 0 2px var(--accent), 0 0 10px rgba(255, 178, 46, 0.5); }
 .placing .cell { cursor: pointer; }
-.cell.pv-ok { background: var(--accent); }
+.cell.pv-ok { background: var(--accent); box-shadow: 0 0 8px rgba(255, 178, 46, 0.6); }
 .cell.pv-bad { background: var(--hit); opacity: 0.55; }
 
-.fleet { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 0.95rem; max-width: 440px; }
-.fleet li { display: contents; }
-.fleet .nm { min-width: 0; }
-.fleet .pips { display: flex; gap: 3px; align-items: center; }
-.fleet .pip { width: 12px; height: 12px; border-radius: 2px; background: var(--ship); }
-.fleet .pip.h { background: var(--hit); }
-.fleet .dead .nm { text-decoration: line-through; color: var(--muted); }
-.fleet .dead .pip { background: var(--hit); opacity: 0.5; }
-.fleet .cur .nm { color: var(--accent); font-weight: 600; }
-
-.controls { display: flex; flex-wrap: wrap; gap: 10px; }
-button.btn {
-  font-family: var(--body); font-size: 1rem; font-weight: 600; letter-spacing: 0.02em;
-  padding: 10px 18px; border-radius: 3px; cursor: pointer;
-  border: 2px solid var(--ink); background: transparent; color: var(--ink);
+/* ---------- frotas ---------- */
+.fleet {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center;
+  width: 100%; max-width: 460px; margin-inline: auto;
 }
-button.btn.primary { background: var(--ink); color: var(--paper); }
-button.btn:hover:not(:disabled) { border-color: var(--accent); }
-button.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.fleet li { display: contents; }
+.fleet .nm { min-width: 0; font-weight: 600; font-size: 0.92rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.fleet .pips { display: flex; gap: 3px; align-items: center; }
+.fleet .pip {
+  width: 16px; height: 10px; border-radius: 2px;
+  background: var(--sonar); box-shadow: 0 0 6px rgba(76, 230, 166, 0.5);
+}
+.fleet .pip.h { background: var(--hit); box-shadow: 0 0 6px rgba(255, 75, 56, 0.6); }
+.fleet .dead .nm { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--hit); text-decoration-thickness: 2px; }
+.fleet .dead .pip { background: #3a1c1a; box-shadow: none; }
+.fleet .cur .nm { color: var(--accent); text-shadow: 0 0 8px rgba(255, 178, 46, 0.5); }
 
-.lower { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 28px; }
-.panel h3 { margin: 0 0 8px; font-family: var(--mono); font-weight: 500; font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
-.log { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: 0.82rem; display: flex; flex-direction: column; gap: 3px; font-variant-numeric: tabular-nums; }
-.log li { display: grid; grid-template-columns: 3em 6em 1fr; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
-.log .r-hit, .log .r-sunk { color: var(--hit); }
-.log .empty { display: block; color: var(--muted); border: 0; font-family: var(--body); font-size: 0.95rem; }
-.rules { margin: 0; padding-left: 1.1em; color: var(--muted); font-size: 0.95rem; display: flex; flex-direction: column; gap: 4px; max-width: 60ch; }
+/* ---------- diário e regras ---------- */
+.lower { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 18px; }
+.panel {
+  padding: 14px 16px 16px; min-width: 0;
+  background: var(--panel);
+  border: 2px solid var(--edge); border-radius: 12px;
+}
+.panel h3 { margin: 0 0 10px; font-family: var(--display); font-weight: 400; font-size: 1.2rem; letter-spacing: 0.04em; }
+.log { list-style: none; margin: 0; padding: 10px 12px; font-family: var(--mono); font-size: 0.92rem; display: flex; flex-direction: column; gap: 4px; font-variant-numeric: tabular-nums;
+  background: #03121b; border-radius: 6px; box-shadow: inset 0 2px 6px #000; color: var(--sonar); }
+.log li { display: grid; grid-template-columns: 3em 6em 1fr; gap: 8px; border-bottom: 1px dashed rgba(76, 230, 166, 0.18); padding-bottom: 3px; }
+.log li:first-child { color: #c9ffe6; }
+.log .r-hit, .log .r-sunk { color: var(--hit); font-weight: 700; }
+.log .empty { display: block; color: var(--muted); border: 0; }
+.rules { margin: 0; padding-left: 1.1em; color: var(--muted); font-size: 0.95rem; display: flex; flex-direction: column; gap: 5px; max-width: 60ch; }
+.rules li::marker { color: var(--accent); }
 
-.banner { font-family: var(--display); font-size: clamp(2rem, 6vw, 2.8rem); line-height: 1; }
-.banner.win { color: var(--accent); }
-.banner.lose { color: var(--hit); }
+.banner { font-family: var(--display); font-size: clamp(2.2rem, 7vw, 3.2rem); line-height: 1; letter-spacing: 0.04em; }
+.banner.win { color: var(--accent); text-shadow: 0 0 20px rgba(255, 178, 46, 0.6); }
+.banner.lose { color: var(--hit); text-shadow: 0 0 20px rgba(255, 75, 56, 0.6); }
 
 @media (max-width: 640px) {
   .battle .enemy-board { order: -1; }
+  #b-sound { margin-left: 0; }
+  .board h2 { font-size: 1.25rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cell.fresh, .wreck.new { animation: none; }
+  .cell.fresh, .wreck.new, .status::before, .grid.target::after { animation: none; }
 }
 </style>
 
 <div class="wrap" id="app">
   <header>
     <h1>Batalha Naval</h1>
-    <div class="meta">
-      <span id="m-shots">Tiros 0</span>
-      <span id="m-acc">Precisão —</span>
-      <span id="m-score">Placar 0 × 0</span>
+    <div class="hud">
+      <div class="gauge"><span>Tiros</span><b id="m-shots">0</b></div>
+      <div class="gauge"><span>Precisão</span><b id="m-acc">—</b></div>
+      <div class="gauge"><span>Placar</span><b id="m-score">0×0</b></div>
     </div>
   </header>
 
@@ -540,9 +658,9 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     $("own-left").textContent = phase === "setup" ? "" : afloat(me) + " de 5 no mar";
     $("enemy-left").textContent = phase === "setup" ? "" : afloat(enemy) + " de 5 no mar";
 
-    $("m-shots").textContent = "Tiros " + stats.shots;
-    $("m-acc").textContent = "Precisão " + (stats.shots ? Math.round((100 * stats.hits) / stats.shots) + "%" : "—");
-    $("m-score").textContent = "Placar " + score.me + " × " + score.enemy;
+    $("m-shots").textContent = stats.shots;
+    $("m-acc").textContent = (stats.shots ? Math.round((100 * stats.hits) / stats.shots) + "%" : "—");
+    $("m-score").textContent = score.me + "×" + score.enemy;
 
     const setup = phase === "setup";
     $("b-start").hidden = !setup;
