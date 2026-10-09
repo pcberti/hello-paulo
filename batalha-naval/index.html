@@ -12,6 +12,7 @@
   --line: #bfccd4;
   --sea: #d4e2e9;
   --ship: #3d5467;
+  --deck: #a3b5c3;
   --hit: #c62f25;
   --miss: #6f889c;
   --accent: #d99a17;
@@ -22,13 +23,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0a151e; --paper: #0f1f2b; --ink: #d9e6ee; --muted: #8aa1b2; --line: #213849;
-    --sea: #122838; --ship: #8ea6b9; --hit: #ff5b47; --miss: #5d788c; --accent: #f0b53a;
+    --sea: #122838; --ship: #8ea6b9; --deck: #4b6375; --hit: #ff5b47; --miss: #5d788c; --accent: #f0b53a;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0a151e; --paper: #0f1f2b; --ink: #d9e6ee; --muted: #8aa1b2; --line: #213849;
-  --sea: #122838; --ship: #8ea6b9; --hit: #ff5b47; --miss: #5d788c; --accent: #f0b53a;
+  --sea: #122838; --ship: #8ea6b9; --deck: #4b6375; --hit: #ff5b47; --miss: #5d788c; --accent: #f0b53a;
   color-scheme: dark;
 }
 
@@ -103,6 +104,25 @@ h1 { font-family: var(--display); font-weight: 400; font-size: clamp(2.4rem, 7vw
 .cell.fresh { animation: splash 0.45s ease-out; }
 @keyframes splash { from { transform: scale(0.6); filter: brightness(1.6); } to { transform: scale(1); filter: none; } }
 
+/* desenho do navio afundado, cobrindo as casas dele */
+.wreck {
+  z-index: 2;
+  pointer-events: none;
+  background: var(--sea);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px var(--hit);
+  overflow: hidden;
+}
+.wreck svg { display: block; width: 100%; height: 100%; }
+.wreck .sv-hull { fill: var(--ship); }
+.wreck .sv-top { fill: var(--deck); }
+.wreck .sv-gun { stroke: var(--deck); stroke-width: 3px; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.wreck .sv-mark { fill: none; stroke: var(--deck); stroke-width: 1.5px; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.wreck .sv-glow { fill: var(--accent); opacity: 0.85; }
+.wreck .sv-fire { fill: var(--hit); }
+.wreck.new { animation: wreck-in 0.6s ease-out; }
+@keyframes wreck-in { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
+
 .target .cell.open { cursor: crosshair; }
 .target .cell.open:hover { box-shadow: inset 0 0 0 2px var(--accent); }
 .placing .cell { cursor: pointer; }
@@ -146,7 +166,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .battle .enemy-board { order: -1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cell.fresh { animation: none; }
+  .cell.fresh, .wreck.new { animation: none; }
 }
 </style>
 
@@ -407,7 +427,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
   })();
 
   // ---------- estado ----------
-  let me, enemy, phase, placing, horiz, hover, busy, stats, log, fresh;
+  let me, enemy, phase, placing, horiz, hover, busy, stats, log, fresh, justSunk = -1;
   const score = { me: 0, enemy: 0 };
 
   function reset() {
@@ -426,18 +446,27 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
   }
 
   // ---------- interface ----------
+  // tudo com posição explícita na grade, para o desenho do navio poder ficar por cima das casas
+  function header(el, row, col, text) {
+    const d = Object.assign(document.createElement("div"), { className: "hd", textContent: text });
+    d.style.gridRow = row;
+    d.style.gridColumn = col;
+    el.appendChild(d);
+  }
   function buildGrid(el, onClick) {
     el.innerHTML = "";
-    el.appendChild(Object.assign(document.createElement("div"), { className: "hd" }));
-    for (let c = 0; c < N; c++) el.appendChild(Object.assign(document.createElement("div"), { className: "hd", textContent: c + 1 }));
+    header(el, 1, 1, "");
+    for (let c = 0; c < N; c++) header(el, 1, c + 2, c + 1);
     const cells = [];
     for (let r = 0; r < N; r++) {
-      el.appendChild(Object.assign(document.createElement("div"), { className: "hd", textContent: L[r] }));
+      header(el, r + 2, 1, L[r]);
       for (let c = 0; c < N; c++) {
         const i = r * N + c;
         const b = document.createElement("button");
         b.type = "button";
         b.className = "cell";
+        b.style.gridRow = r + 2;
+        b.style.gridColumn = c + 2;
         b.dataset.i = i;
         b.addEventListener("click", () => onClick(i));
         el.appendChild(b);
@@ -504,6 +533,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
       el.setAttribute("aria-label", coord(i) + (s ? ", " + ["", "água", "acerto", "afundado", "água"][s] : ""));
     });
     fresh.clear();
+    renderWrecks();
 
     renderFleet($("f-own"), me, true);
     renderFleet($("f-enemy"), enemy, false);
@@ -539,6 +569,64 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
       li.innerHTML = `<span>${coord(e.i)}</span><span>${e.who}</span><span class="r-${e.type}">${verb[e.type]}${e.ship ? " · " + e.ship : ""}</span>`;
       logEl.appendChild(li);
     });
+  }
+
+  // ---------- desenhos dos navios (vista de cima, proa para a direita) ----------
+  const hull = (W, beam, bow) =>
+    `<path class="sv-hull" d="M8 ${50 - beam} L${W - bow} ${50 - beam} Q${W - 4} 50 ${W - bow} ${50 + beam} L8 ${50 + beam} Q2 50 8 ${50 - beam}Z"/>`;
+  const turret = (x, dir) =>
+    `<line class="sv-gun" x1="${x}" y1="45" x2="${x + dir * 42}" y2="45"/>` +
+    `<line class="sv-gun" x1="${x}" y1="55" x2="${x + dir * 42}" y2="55"/>` +
+    `<circle class="sv-top" cx="${x}" cy="50" r="13"/>`;
+  const SHIP_ART = [
+    // porta-aviões
+    (W) => `<path class="sv-hull" d="M10 16 L410 16 L494 38 L494 62 L410 84 L10 84Z"/>` +
+      `<line class="sv-mark" x1="30" y1="50" x2="470" y2="50"/>` +
+      `<line class="sv-mark" x1="40" y1="74" x2="260" y2="30"/>` +
+      `<rect class="sv-top" x="300" y="18" width="70" height="14" rx="3"/>`,
+    // encouraçado
+    (W) => hull(W, 26, 90) + turret(80, -1) + turret(275, 1) + turret(330, 1) +
+      `<rect class="sv-top" x="135" y="37" width="100" height="26" rx="4"/>`,
+    // cruzador
+    (W) => hull(W, 23, 70) + turret(62, -1) + turret(228, 1) +
+      `<rect class="sv-top" x="105" y="38" width="70" height="24" rx="4"/>`,
+    // submarino
+    (W) => `<path class="sv-hull" d="M22 50 Q22 31 62 31 L236 31 Q288 35 292 50 Q288 65 236 69 L62 69 Q22 69 22 50Z"/>` +
+      `<line class="sv-gun" x1="14" y1="34" x2="14" y2="66"/>` +
+      `<rect class="sv-top" x="118" y="40" width="48" height="20" rx="9"/>`,
+    // destroier
+    (W) => hull(W, 19, 55) + turret(142, 1) +
+      `<rect class="sv-top" x="55" y="40" width="44" height="20" rx="4"/>` +
+      `<ellipse class="sv-top" cx="114" cy="50" rx="7" ry="9"/>`,
+  ];
+  function shipSVG(k, size, h) {
+    const W = size * 100;
+    let fires = "";
+    for (let p = 0; p < size; p++) {
+      const x = p * 100 + 50 + (p % 2 ? 14 : -12), y = p % 2 ? 42 : 58;
+      fires += `<circle class="sv-glow" cx="${x}" cy="${y}" r="10"/><circle class="sv-fire" cx="${x}" cy="${y}" r="5"/>`;
+    }
+    const art = SHIP_ART[k](W) + fires;
+    return h
+      ? `<svg viewBox="0 0 ${W} 100" preserveAspectRatio="none">${art}</svg>`
+      : `<svg viewBox="0 0 100 ${W}" preserveAspectRatio="none"><g transform="rotate(90) translate(0 -100)">${art}</g></svg>`;
+  }
+  function renderWrecks() {
+    const g = $("g-enemy");
+    g.querySelectorAll(".wreck").forEach((n) => n.remove());
+    enemy.ships.forEach((s, k) => {
+      if (s.hits < s.size) return;
+      const r = (s.cells[0] / N) | 0, c = s.cells[0] % N;
+      const h = s.cells[1] - s.cells[0] === 1;
+      const el = document.createElement("div");
+      el.className = "wreck" + (k === justSunk ? " new" : "");
+      el.setAttribute("aria-hidden", "true");
+      el.style.gridRow = h ? `${r + 2}` : `${r + 2} / span ${s.size}`;
+      el.style.gridColumn = h ? `${c + 2} / span ${s.size}` : `${c + 2}`;
+      el.innerHTML = shipSVG(k, s.size, h);
+      g.appendChild(el);
+    });
+    justSunk = -1;
   }
 
   function renderFleet(el, b, mine) {
@@ -608,6 +696,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     stats.shots++;
     if (res.type !== "miss") stats.hits++;
     sound.play(res.type);
+    if (res.type === "sunk") justSunk = enemy.ships.indexOf(res.ship);
     fresh.add("e" + i);
     log.unshift({ i, who: "Você", type: res.type, ship: res.type === "sunk" ? res.ship.name : "" });
     const msg = res.type === "miss" ? coord(i) + ": água." : res.type === "hit" ? coord(i) + ": acertou!" : "Você afundou o " + res.ship.name.toLowerCase() + "!";
