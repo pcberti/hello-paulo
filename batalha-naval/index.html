@@ -171,6 +171,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     <button class="btn" id="b-manual" type="button">Posicionar manualmente</button>
     <button class="btn" id="b-rotate" type="button" hidden>Girar (R)</button>
     <button class="btn primary" id="b-new" type="button" hidden>Nova partida</button>
+    <button class="btn" id="b-sound" type="button" aria-pressed="true">Som ligado (M)</button>
   </div>
 
   <div class="boards">
@@ -319,6 +320,92 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     return pickAny(picks);
   }
 
+  // ---------- sons (sintetizados com Web Audio, sem arquivos) ----------
+  const sound = (() => {
+    let ctx = null, on = true;
+    try { on = localStorage.getItem("bn-som") !== "0"; } catch (e) {}
+    function ac() {
+      if (!ctx) {
+        const C = window.AudioContext || window.webkitAudioContext;
+        if (!C) return null;
+        ctx = new C();
+      }
+      if (ctx.state === "suspended") ctx.resume();
+      return ctx;
+    }
+    function env(c, t, peak, dur) {
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      g.connect(c.destination);
+      return g;
+    }
+    // ruído filtrado: água espirrando, explosões
+    function burst(c, t, { dur, from, to, type = "lowpass", gain, q = 1 }) {
+      const buf = c.createBuffer(1, Math.ceil(c.sampleRate * dur), c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const f = c.createBiquadFilter();
+      f.type = type;
+      f.Q.value = q;
+      f.frequency.setValueAtTime(from, t);
+      f.frequency.exponentialRampToValueAtTime(to, t + dur);
+      src.connect(f).connect(env(c, t, gain, dur));
+      src.start(t);
+      src.stop(t + dur);
+    }
+    function tone(c, t, { freq, to = freq, dur, type = "sine", gain }) {
+      const o = c.createOscillator();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t);
+      o.frequency.exponentialRampToValueAtTime(to, t + dur);
+      o.connect(env(c, t, gain, dur));
+      o.start(t);
+      o.stop(t + dur);
+    }
+    const fx = {
+      miss(c, t, v) {
+        burst(c, t, { dur: 0.55, from: 3200, to: 350, type: "bandpass", gain: 0.6 * v, q: 0.7 });
+        tone(c, t, { freq: 700, to: 180, dur: 0.18, gain: 0.08 * v });
+      },
+      hit(c, t, v) {
+        burst(c, t, { dur: 0.8, from: 2000, to: 70, gain: 0.95 * v });
+        tone(c, t, { freq: 130, to: 38, dur: 0.45, type: "triangle", gain: 0.55 * v });
+      },
+      sunk(c, t, v) {
+        fx.hit(c, t, v);
+        burst(c, t + 0.25, { dur: 1.5, from: 700, to: 40, gain: 0.7 * v });
+        tone(c, t + 0.2, { freq: 90, to: 28, dur: 1.3, type: "sawtooth", gain: 0.12 * v });
+      },
+      place(c, t) { tone(c, t, { freq: 540, to: 380, dur: 0.09, type: "square", gain: 0.05 }); },
+      bad(c, t) { tone(c, t, { freq: 150, to: 120, dur: 0.2, type: "square", gain: 0.06 }); },
+      win(c, t) {
+        [523, 659, 784, 1047].forEach((f, k) => tone(c, t + k * 0.14, { freq: f, dur: k === 3 ? 0.6 : 0.16, type: "triangle", gain: 0.25 }));
+      },
+      lose(c, t) {
+        [392, 330, 262, 196].forEach((f, k) => tone(c, t + k * 0.24, { freq: f, to: f * 0.97, dur: k === 3 ? 0.9 : 0.26, type: "triangle", gain: 0.22 }));
+      },
+    };
+    return {
+      get on() { return on; },
+      play(name, v = 1) {
+        if (!on) return;
+        const c = ac();
+        if (!c) return;
+        try { fx[name](c, c.currentTime + 0.01, v); } catch (e) {}
+      },
+      toggle() {
+        on = !on;
+        try { localStorage.setItem("bn-som", on ? "1" : "0"); } catch (e) {}
+        if (on) sound.play("place");
+        return on;
+      },
+    };
+  })();
+
   // ---------- estado ----------
   let me, enemy, phase, placing, horiz, hover, busy, stats, log, fresh;
   const score = { me: 0, enemy: 0 };
@@ -436,6 +523,8 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     $("b-rotate").textContent = "Girar (R) · " + (horiz ? "horizontal" : "vertical");
     $("b-new").hidden = setup;
     $("b-new").textContent = phase === "over" ? "Nova partida" : "Recomeçar";
+    $("b-sound").textContent = sound.on ? "Som ligado (M)" : "Som desligado (M)";
+    $("b-sound").setAttribute("aria-pressed", String(sound.on));
 
     const logEl = $("log");
     logEl.innerHTML = "";
@@ -486,10 +575,12 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     if (placing < 0) return;
     const cells = cellsFor((i / N) | 0, i % N, FLEET[placing][1], horiz);
     if (!canPlace(me, cells)) {
+      sound.play("bad");
       setStatus("Não cabe aí", "O navio precisa ficar dentro do mapa e sem encostar em outro, nem na diagonal.");
       return;
     }
     place(me, placing, cells);
+    sound.play("place");
     placing++;
     if (placing >= FLEET.length) {
       placing = -1;
@@ -516,6 +607,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     if (!res) return;
     stats.shots++;
     if (res.type !== "miss") stats.hits++;
+    sound.play(res.type);
     fresh.add("e" + i);
     log.unshift({ i, who: "Você", type: res.type, ship: res.type === "sunk" ? res.ship.name : "" });
     const msg = res.type === "miss" ? coord(i) + ": água." : res.type === "hit" ? coord(i) + ": acertou!" : "Você afundou o " + res.ship.name.toLowerCase() + "!";
@@ -530,6 +622,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     if (phase !== "battle") return;
     const i = aiPick(me);
     const res = fire(me, i);
+    sound.play(res.type, 0.7);
     fresh.add("m" + i);
     log.unshift({ i, who: "Inimigo", type: res.type, ship: res.type === "sunk" ? res.ship.name : "" });
     busy = false;
@@ -545,6 +638,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
     phase = "over";
     busy = false;
     if (won) score.me++; else score.enemy++;
+    setTimeout(() => sound.play(won ? "win" : "lose"), 700);
     const acc = stats.shots ? Math.round((100 * stats.hits) / stats.shots) : 0;
     $("st-main").innerHTML = won ? '<span class="banner win">Vitória</span>' : '<span class="banner lose">Derrota</span>';
     $("st-sub").textContent = won
@@ -556,13 +650,19 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
   $("b-start").addEventListener("click", startBattle);
   $("b-random").addEventListener("click", () => {
     me = randomBoard(); placing = -1; hover = -1;
+    sound.play("place");
     setStatus("Nova posição sorteada", "Comece a batalha ou sorteie de novo.");
     render();
   });
   $("b-manual").addEventListener("click", startManual);
   $("b-rotate").addEventListener("click", rotate);
   $("b-new").addEventListener("click", reset);
-  document.addEventListener("keydown", (e) => { if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey) rotate(); });
+  $("b-sound").addEventListener("click", () => { sound.toggle(); render(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "r" || e.key === "R") rotate();
+    if (e.key === "m" || e.key === "M") { sound.toggle(); render(); }
+  });
 
   reset();
 })();
