@@ -230,6 +230,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .wreck .sv-mark { fill: none; stroke: var(--deck); stroke-width: 1.5px; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 .wreck .sv-glow { fill: var(--accent); opacity: 0.85; }
 .wreck .sv-fire { fill: var(--hit); }
+.wreck.intact { box-shadow: inset 0 0 0 2px var(--accent), 0 0 12px rgba(255, 178, 46, 0.45); }
 .wreck.new { animation: wreck-in 0.6s ease-out; }
 @keyframes wreck-in { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
 
@@ -545,7 +546,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
   })();
 
   // ---------- estado ----------
-  let me, enemy, phase, placing, horiz, hover, busy, stats, log, fresh, justSunk = { me: -1, enemy: -1 };
+  let me, enemy, phase, placing, horiz, hover, busy, stats, log, fresh, justSunk = { me: -1, enemy: -1 }, justRevealed = false;
   const score = { me: 0, enemy: 0 };
 
   function reset() {
@@ -717,10 +718,12 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
       `<rect class="sv-top" x="55" y="40" width="44" height="20" rx="4"/>` +
       `<ellipse class="sv-top" cx="114" cy="50" rx="7" ry="9"/>`,
   ];
-  function shipSVG(k, size, h) {
+  // burning[p] diz se a casa p do navio foi atingida (desenha fogo nela)
+  function shipSVG(k, size, h, burning) {
     const W = size * 100;
     let fires = "";
     for (let p = 0; p < size; p++) {
+      if (!burning[p]) continue;
       const x = p * 100 + 50 + (p % 2 ? 14 : -12), y = p % 2 ? 42 : 58;
       fires += `<circle class="sv-glow" cx="${x}" cy="${y}" r="10"/><circle class="sv-fire" cx="${x}" cy="${y}" r="5"/>`;
     }
@@ -731,21 +734,24 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
   }
   function renderWrecks() {
     drawWrecks($("g-own"), me, justSunk.me);
-    drawWrecks($("g-enemy"), enemy, justSunk.enemy);
+    drawWrecks($("g-enemy"), enemy, justSunk.enemy, phase === "over");
     justSunk = { me: -1, enemy: -1 };
+    justRevealed = false;
   }
-  function drawWrecks(g, board, newK) {
+  // revealAll: no fim da partida, desenha também os navios que sobraram
+  function drawWrecks(g, board, newK, revealAll = false) {
     g.querySelectorAll(".wreck").forEach((n) => n.remove());
     board.ships.forEach((s, k) => {
-      if (s.hits < s.size) return;
+      const sunk = s.hits === s.size;
+      if (!sunk && !revealAll) return;
       const r = (s.cells[0] / N) | 0, c = s.cells[0] % N;
       const h = s.cells[1] - s.cells[0] === 1;
       const el = document.createElement("div");
-      el.className = "wreck" + (k === newK ? " new" : "");
+      el.className = "wreck" + (sunk ? "" : " intact") + (k === newK || (!sunk && justRevealed) ? " new" : "");
       el.setAttribute("aria-hidden", "true");
       el.style.gridRow = h ? `${r + 2}` : `${r + 2} / span ${s.size}`;
       el.style.gridColumn = h ? `${c + 2} / span ${s.size}` : `${c + 2}`;
-      el.innerHTML = shipSVG(k, s.size, h);
+      el.innerHTML = shipSVG(k, s.size, h, s.cells.map((i) => board.shots[i] >= 2 && board.shots[i] <= 3));
       g.appendChild(el);
     });
   }
@@ -846,6 +852,7 @@ button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
   }
 
   function finish(won) {
+    justRevealed = true;
     phase = "over";
     busy = false;
     if (won) score.me++; else score.enemy++;
